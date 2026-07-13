@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#080b10" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Beat Delver: Rune Vault</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <p>RHYTHM PUZZLE ROGUELITE</p>
+            <h1>BEAT DELVER</h1>
+          </div>
+        </div>
+        <button id="pause" class="icon-button" type="button" aria-label="일시 정지" title="일시 정지">
+          <span class="pause-icon" aria-hidden="true"></span>
+        </button>
+      </header>
+
+      <section class="mission-strip" aria-live="polite">
+        <div class="depth-badge">
+          <span>VAULT</span>
+          <strong id="depth">01</strong>
+        </div>
+        <div class="mission-copy">
+          <span id="room-name">공명 전당</span>
+          <strong id="objective">룬 크리스털을 압력판 위로 밀어라</strong>
+        </div>
+        <div id="seal-status" class="seal-status" aria-label="봉인 진행도">0/1</div>
+      </section>
+
+      <section class="game-frame" aria-label="Beat Delver 게임 화면">
+        <div class="hud">
+          <div id="hearts" class="hearts" aria-label="생명력"></div>
+          <div class="hud-stat"><span>COMBO</span><strong id="combo">0</strong></div>
+          <div class="hud-stat"><span>SHARDS</span><strong id="gold">0</strong></div>
+          <div class="hud-stat"><span>SCORE</span><strong id="score">0</strong></div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="game" width="900" height="900" aria-label="리듬 퍼즐 던전"></canvas>
+          <div class="vignette" aria-hidden="true"></div>
+          <div id="floating-message" class="floating-message" aria-live="polite"></div>
+
+          <div id="overlay" class="overlay">
+            <div class="overlay-content">
+              <div class="crest" aria-hidden="true"><span></span></div>
+              <p class="eyebrow">THE RUNE VAULT AWAITS</p>
+              <h2>박자에 맞춰<br /><em>봉인을 깨워라</em></h2>
+              <p class="intro-copy">수축하는 룬 링이 탐험가에게 닿는 순간 방향을 입력하세요. 적을 피하고 크리스털을 밀어 봉인문을 여세요.</p>
+              <div class="tempo-select" aria-label="템포 선택">
+                <button class="tempo is-active" data-bpm="108" type="button"><span>CALM</span>108</button>
+                <button class="tempo" data-bpm="126" type="button"><span>PULSE</span>126</button>
+                <button class="tempo" data-bpm="144" type="button"><span>RUSH</span>144</button>
+              </div>
+              <button id="start" class="primary-action" type="button">
+                <span>탐험 시작</span><i aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div id="pause-panel" class="pause-panel" hidden>
+            <strong>PAUSED</strong>
+            <button id="resume" type="button">계속하기</button>
+            <button id="restart" type="button">처음부터</button>
+          </div>
+        </div>
+
+        <div class="beat-console">
+          <div class="timing-readout">
+            <span id="timing-dot" class="timing-dot"></span>
+            <div><small>TIMING</small><strong id="timing-text">READY</strong></div>
+          </div>
+          <div class="beat-track" aria-hidden="true">
+            <span class="beat-edge from-left"></span>
+            <span id="beat-cursor-left" class="beat-cursor from-left"></span>
+            <span id="beat-cursor-right" class="beat-cursor from-right"></span>
+            <span class="beat-core"></span>
+            <span class="beat-edge from-right"></span>
+          </div>
+          <div class="beat-count"><span id="beat-number">1</span><small>/ 4</small></div>
+        </div>
+      </section>
+
+      <nav id="touch-pad" class="touch-pad" aria-label="이동 조작">
+        <button class="pad-btn up" data-dir="up" type="button" aria-label="위로 이동"><span></span></button>
+        <button class="pad-btn left" data-dir="left" type="button" aria-label="왼쪽으로 이동"><span></span></button>
+        <div class="pad-core" aria-hidden="true"><i></i></div>
+        <button class="pad-btn right" data-dir="right" type="button" aria-label="오른쪽으로 이동"><span></span></button>
+        <button class="pad-btn down" data-dir="down" type="button" aria-label="아래로 이동"><span></span></button>
+      </nav>
+    </main>
+
+    <script src="./src/game.js" defer></script>
+  </body>
+</html>
