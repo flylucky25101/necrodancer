@@ -2,7 +2,6 @@ const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
 
 const ui = {
-  hearts: document.querySelector("#hearts"),
   combo: document.querySelector("#combo"),
   gold: document.querySelector("#gold"),
   score: document.querySelector("#score"),
@@ -12,10 +11,11 @@ const ui = {
   sealStatus: document.querySelector("#seal-status"),
   timingText: document.querySelector("#timing-text"),
   timingDot: document.querySelector("#timing-dot"),
-  beatCursorLeft: document.querySelector("#beat-cursor-left"),
-  beatCursorRight: document.querySelector("#beat-cursor-right"),
-  beatConsole: document.querySelector(".beat-console"),
+  beatTrack: document.querySelector("#beat-track"),
+  stepConsole: document.querySelector(".step-console"),
   touchPad: document.querySelector("#touch-pad"),
+  queueCount: document.querySelector("#queue-count"),
+  queueSlots: [...document.querySelectorAll(".queue-slot")],
   beatNumber: document.querySelector("#beat-number"),
   overlay: document.querySelector("#overlay"),
   start: document.querySelector("#start"),
@@ -28,97 +28,111 @@ const ui = {
 };
 
 const SIZE = 7;
+const MAX_QUEUE = 3;
 const dirs = {
-  up: { x: 0, y: -1 },
-  down: { x: 0, y: 1 },
-  left: { x: -1, y: 0 },
-  right: { x: 1, y: 0 },
+  up: { x: 0, y: -1, symbol: "↑" },
+  down: { x: 0, y: 1, symbol: "↓" },
+  left: { x: -1, y: 0, symbol: "←" },
+  right: { x: 1, y: 0, symbol: "→" },
 };
 
-const rooms = [
+const gardens = [
   {
-    name: "공명 전당",
-    hint: "크리스털을 압력판 위로 밀어라",
+    name: "새싹 뜰",
+    hint: "물뿌리개를 꽃밭까지 밀어 주세요",
     player: [1, 3],
-    exit: [5, 5],
-    walls: [[3, 1], [3, 5]],
-    plates: [[4, 3]],
-    crystals: [[2, 3]],
-    spikes: [[2, 5], [4, 1]],
-    coins: [[1, 1], [5, 1], [1, 5]],
-    enemies: [{ type: "bat", at: [5, 2] }],
+    portal: [5, 5],
+    hedges: [[3, 1], [3, 5]],
+    beds: [[4, 3]],
+    cans: [[2, 3]],
+    mushrooms: [],
+    seeds: [[1, 1], [5, 1], [1, 5]],
+    friends: [],
   },
   {
-    name: "쌍둥이 봉인실",
-    hint: "두 룬을 동시에 밝혀라",
+    name: "클로버 마당",
+    hint: "두 꽃밭에 물뿌리개를 놓아 주세요",
     player: [3, 3],
-    exit: [5, 1],
-    walls: [[1, 3], [3, 5]],
-    plates: [[1, 1], [5, 5]],
-    crystals: [[2, 2], [4, 4]],
-    spikes: [[4, 2], [2, 4]],
-    coins: [[1, 5], [5, 1], [3, 2]],
-    enemies: [{ type: "slime", at: [4, 1] }, { type: "bat", at: [1, 4] }],
+    portal: [5, 1],
+    hedges: [[1, 3], [3, 5]],
+    beds: [[1, 1], [5, 5]],
+    cans: [[2, 2], [4, 4]],
+    mushrooms: [[4, 2]],
+    seeds: [[1, 5], [5, 1], [3, 2]],
+    friends: [{ type: "mole", at: [4, 1] }, { type: "dandelion", at: [1, 4] }],
   },
   {
-    name: "파수꾼의 교차로",
-    hint: "가시의 박자를 읽고 봉인을 완성하라",
+    name: "햇살 연못",
+    hint: "숲 친구들과 함께 마지막 꽃밭을 깨워요",
     player: [1, 5],
-    exit: [5, 1],
-    walls: [[4, 2], [2, 4], [4, 4]],
-    plates: [[3, 1], [3, 5]],
-    crystals: [[2, 3], [4, 3]],
-    spikes: [[3, 2], [2, 3], [4, 3], [3, 4]],
-    coins: [[1, 1], [5, 5], [3, 3]],
-    enemies: [{ type: "knight", at: [3, 3], hp: 2 }, { type: "slime", at: [5, 4] }],
+    portal: [5, 1],
+    hedges: [[4, 2], [2, 4], [4, 4]],
+    beds: [[3, 1], [3, 5]],
+    cans: [[2, 3], [4, 3]],
+    mushrooms: [[1, 2], [5, 2]],
+    seeds: [[1, 1], [5, 5], [3, 3]],
+    friends: [{ type: "badger", at: [5, 4] }, { type: "mole", at: [1, 4] }],
   },
 ];
 
-const atlas = new Image();
-atlas.src = "./assets/sprite-atlas.png";
-let atlasReady = false;
-atlas.addEventListener("load", () => { atlasReady = true; });
+const sprites = new Image();
+sprites.src = "./assets/garden-sprites.png";
+let spritesReady = false;
+sprites.addEventListener("load", () => { spritesReady = true; });
+
+const gardenImage = new Image();
+gardenImage.src = "./assets/garden-clearing.png";
+let gardenReady = false;
+gardenImage.addEventListener("load", () => { gardenReady = true; });
 
 const spriteCells = {
-  player: [0, 0], bat: [1, 0], slime: [2, 0], knight: [3, 0],
-  coin: [0, 1], crystal: [1, 1], gate: [2, 1], spike: [3, 1],
+  player: [0, 0],
+  mole: [1, 0],
+  dandelion: [2, 0],
+  badger: [3, 0],
+  seed: [0, 1],
+  can: [1, 1],
+  portal: [2, 1],
+  mushroom: [3, 1],
 };
 
 const state = {
   running: false,
   paused: false,
-  over: false,
-  bpm: 108,
-  beatMs: 60000 / 108,
+  complete: false,
+  bpm: 76,
+  beatMs: 60000 / 76,
   nextBeatAt: 0,
   beatIndex: 0,
-  input: null,
+  beatRemain: 1,
+  beatFlash: 0,
+  queue: [],
+  gardenIndex: 0,
   depth: 1,
-  roomIndex: 0,
   player: null,
-  enemies: [],
-  crystals: [],
-  plates: [],
-  spikes: [],
-  coins: [],
-  walls: [],
-  exit: null,
-  gateOpen: false,
-  combo: 0,
+  cans: [],
+  beds: [],
+  seeds: [],
+  mushrooms: [],
+  hedges: [],
+  friends: [],
+  portal: null,
+  portalOpen: false,
+  sparkle: 0,
   gold: 0,
   score: 0,
+  actionCount: 0,
   shake: 0,
-  flash: 0,
-  beatFlash: 0,
-  beatRemain: 1,
+  beatPulse: 0,
   messageTimer: 0,
   particles: [],
   audio: null,
+  tutorial: 0,
   lastFrame: performance.now(),
 };
 
 function entity(x, y, extra = {}) {
-  return { x, y, rx: x, ry: y, squash: 0, ...extra };
+  return { x, y, rx: x, ry: y, squash: 0, tilt: 0, mood: "", moodTimer: 0, ...extra };
 }
 
 function clamp(value, min, max) {
@@ -144,7 +158,7 @@ function makeAudio() {
   if (!AudioContext) return null;
   const context = new AudioContext();
   const master = context.createGain();
-  master.gain.value = 0.15;
+  master.gain.value = 0.13;
   master.connect(context.destination);
   return { context, master };
 }
@@ -152,75 +166,74 @@ function makeAudio() {
 function tone(frequency, duration, volume, type = "sine", delay = 0) {
   if (!state.audio) return;
   const now = state.audio.context.currentTime + delay;
-  const osc = state.audio.context.createOscillator();
+  const oscillator = state.audio.context.createOscillator();
   const gain = state.audio.context.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(frequency, now);
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, now);
   gain.gain.setValueAtTime(volume, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-  osc.connect(gain);
+  oscillator.connect(gain);
   gain.connect(state.audio.master);
-  osc.start(now);
-  osc.stop(now + duration);
+  oscillator.start(now);
+  oscillator.stop(now + duration);
 }
 
 function playBeat() {
-  const accent = state.beatIndex % 4 === 1;
-  tone(accent ? 92 : 72, 0.11, accent ? 0.42 : 0.25, "sine");
-  tone(accent ? 740 : 1040, 0.035, 0.09, "square");
-  if (accent) tone(185, 0.15, 0.08, "triangle", 0.02);
+  const notes = [392, 494, 440, 523];
+  const note = notes[state.beatIndex % notes.length];
+  tone(note, 0.14, 0.08, "triangle");
+  tone(note * 2, 0.045, 0.035, "sine", 0.015);
 }
 
-function playAction(kind) {
-  if (kind === "perfect") {
-    tone(660, 0.08, 0.12, "triangle");
-    tone(990, 0.1, 0.08, "triangle", 0.035);
-  } else if (kind === "hit") {
-    tone(120, 0.12, 0.2, "sawtooth");
-  } else if (kind === "seal") {
-    [392, 523, 659].forEach((note, index) => tone(note, 0.28, 0.1, "sine", index * 0.07));
+function playSound(kind) {
+  if (kind === "sparkle") {
+    tone(659, 0.12, 0.1, "sine");
+    tone(988, 0.18, 0.07, "triangle", 0.045);
+  } else if (kind === "seed") {
+    tone(784, 0.1, 0.09, "triangle");
+  } else if (kind === "bloom") {
+    [523, 659, 784].forEach((note, index) => tone(note, 0.3, 0.08, "sine", index * 0.075));
+  } else if (kind === "bump") {
+    tone(220, 0.08, 0.045, "sine");
   }
 }
 
-function loadRoom(index, preservePosition = false) {
-  const room = rooms[index % rooms.length];
-  state.roomIndex = index % rooms.length;
-  state.walls = room.walls.map(([x, y]) => ({ x, y }));
-  state.plates = room.plates.map(([x, y]) => ({ x, y }));
-  state.crystals = room.crystals.map(([x, y]) => entity(x, y));
-  state.spikes = room.spikes.map(([x, y], i) => ({ x, y, phase: i % 2 }));
-  state.coins = room.coins.map(([x, y]) => entity(x, y, { spin: Math.random() * Math.PI }));
-  state.enemies = room.enemies.map((enemyData, i) => {
-    const [x, y] = enemyData.at;
-    return entity(x, y, {
-      type: enemyData.type,
-      hp: enemyData.hp || (enemyData.type === "knight" ? 2 : 1),
-      phase: i % 2,
-      id: `${Date.now()}-${i}`,
-    });
+function loadGarden(index, keepScore = false) {
+  const garden = gardens[index % gardens.length];
+  state.gardenIndex = index % gardens.length;
+  state.hedges = garden.hedges.map(([x, y]) => ({ x, y }));
+  state.beds = garden.beds.map(([x, y]) => ({ x, y }));
+  state.cans = garden.cans.map(([x, y]) => entity(x, y));
+  state.mushrooms = garden.mushrooms.map(([x, y], phase) => ({ x, y, phase: phase % 2 }));
+  state.seeds = garden.seeds.map(([x, y]) => entity(x, y, { spin: Math.random() * Math.PI }));
+  state.friends = garden.friends.map((friend, indexValue) => {
+    const [x, y] = friend.at;
+    return entity(x, y, { type: friend.type, phase: indexValue * 1.3 });
   });
-  const [px, py] = room.player;
-  const hp = preservePosition && state.player ? state.player.hp : 4;
-  state.player = entity(px, py, { hp, invulnerable: 0 });
-  state.exit = { x: room.exit[0], y: room.exit[1] };
-  state.gateOpen = false;
-  state.input = null;
-  ui.roomName.textContent = room.name;
-  ui.objective.textContent = room.hint;
-  updatePuzzle();
+  const [px, py] = garden.player;
+  state.player = entity(px, py);
+  state.portal = { x: garden.portal[0], y: garden.portal[1] };
+  state.portalOpen = false;
+  state.queue = [];
+  if (!keepScore) state.actionCount = 0;
+  ui.roomName.textContent = garden.name;
+  ui.objective.textContent = garden.hint;
+  updateGarden();
   updateHud();
-  burst(px, py, "#42e4da", 18);
+  updateQueueUi();
+  burst(px, py, ["#fff2a8", "#f6a6bd", "#95d6b1"], 18);
 }
 
 function resetRun() {
   state.depth = 1;
-  state.combo = 0;
+  state.sparkle = 0;
   state.gold = 0;
   state.score = 0;
   state.beatIndex = 0;
-  state.over = false;
+  state.complete = false;
+  state.tutorial = 0;
   state.particles = [];
-  loadRoom(0);
+  loadGarden(0);
 }
 
 function beginGame() {
@@ -232,260 +245,268 @@ function beginGame() {
   state.nextBeatAt = performance.now() + state.beatMs;
   ui.overlay.classList.add("is-hidden");
   ui.pausePanel.hidden = true;
-  showMessage("첫 박자를 준비하세요", "good");
+  showMessage("방향을 눌러 다음 걸음을 예약해 보세요", "good", 2.5);
 }
 
 function setPaused(paused) {
-  if (!state.running || state.over) return;
+  if (!state.running || state.complete) return;
   state.paused = paused;
   ui.pausePanel.hidden = !paused;
-  if (paused) setBeatCueClasses(false, false);
   if (!paused) state.nextBeatAt = performance.now() + state.beatMs;
 }
 
-function setBeatCueClasses(ready, beatNow) {
-  ui.beatConsole.classList.toggle("beat-ready", ready);
-  ui.beatConsole.classList.toggle("beat-now", beatNow);
-  ui.touchPad.classList.toggle("beat-ready", ready);
-  ui.touchPad.classList.toggle("beat-now", beatNow);
-}
-
 function queueInput(dir) {
-  if (!state.running || state.paused || state.over) return;
-  const now = performance.now();
-  const untilBeat = state.nextBeatAt - now;
-  const ratio = Math.abs(untilBeat) / state.beatMs;
-  const quality = ratio <= 0.18 ? "perfect" : ratio <= 0.36 ? "good" : "miss";
-  state.input = { dir, quality };
+  if (!state.running || state.paused || state.complete) return;
+  if (state.queue.length >= MAX_QUEUE) {
+    setTiming("세 걸음이 모두 예약됐어요", "bad");
+    showMessage("먼저 예약한 걸음을 기다려 주세요", "bad", 1.1);
+    if (navigator.vibrate) navigator.vibrate(12);
+    return;
+  }
+
+  const sparkle = state.queue.length === 0 && state.beatRemain <= 0.38;
+  state.queue.push({ dir, sparkle });
   flashButton(dir);
-  if (quality === "miss") setTiming("EARLY", "bad");
-  else setTiming(quality.toUpperCase(), "good");
+  updateQueueUi();
+  setTiming(sparkle ? "반짝 타이밍! 보너스 예약" : "다음 걸음 예약 완료", sparkle ? "good" : "");
+  if (sparkle) playSound("sparkle");
+  if (navigator.vibrate) navigator.vibrate(sparkle ? 12 : 6);
+
+  if (state.tutorial === 0) {
+    state.tutorial = 1;
+    showMessage("좋아요! 토끼 모모가 다음 박자에 움직여요", "good", 2.1);
+  }
 }
 
 function flashButton(dir) {
   const button = document.querySelector(`[data-dir="${dir}"]`);
   button?.classList.add("is-pressed");
-  window.setTimeout(() => button?.classList.remove("is-pressed"), 100);
+  window.setTimeout(() => button?.classList.remove("is-pressed"), 110);
+}
+
+function updateQueueUi() {
+  ui.queueSlots.forEach((slot, index) => {
+    const action = state.queue[index];
+    slot.textContent = action ? dirs[action.dir].symbol : "";
+    slot.classList.toggle("is-filled", Boolean(action));
+    slot.classList.toggle("is-sparkle", Boolean(action?.sparkle));
+  });
+  ui.queueCount.textContent = String(state.queue.length);
+  ui.touchPad.classList.toggle("is-full", state.queue.length >= MAX_QUEUE);
 }
 
 function processBeat(now) {
   state.beatIndex += 1;
   state.beatFlash = 1;
+  state.beatPulse = 1;
   playBeat();
-  if (navigator.vibrate) navigator.vibrate(8);
-  state.player.squash = 1;
-  state.enemies.forEach((enemy) => { enemy.squash = 1; });
+  if (navigator.vibrate) navigator.vibrate(4);
 
-  if (state.player.invulnerable > 0) state.player.invulnerable -= 1;
-  if (state.input && state.input.quality !== "miss") {
-    movePlayer(state.input.dir, state.input.quality);
+  const action = state.queue.shift();
+  updateQueueUi();
+  if (action) {
+    state.actionCount += 1;
+    state.player.squash = 1;
+    const moveResult = movePlayer(action.dir, action.sparkle);
+    const moved = Boolean(moveResult);
+    if (action.sparkle && moved) {
+      state.sparkle += 1;
+      state.gold += 1;
+      state.score += 45;
+      setMood(state.player, "heart", 0.75);
+      burst(state.player.x, state.player.y, ["#ffe27a", "#ffffff", "#f3a6c0"], 14);
+    }
+    if (moveResult === "portal") {
+      completeGarden();
+    } else {
+      if (state.actionCount % 2 === 0) moveFriends();
+      updateGarden();
+      updateHud();
+    }
+    if (state.tutorial === 1) {
+      state.tutorial = 2;
+      showMessage("박자를 기다리지 않아도 언제든 세 걸음까지 예약할 수 있어요", "good", 2.6);
+    }
   } else {
-    state.combo = 0;
-    if (!state.input) setTiming("STEP", "");
+    setTiming("쉬어가는 박자 · 손해 없음", "");
   }
-  state.input = null;
 
-  moveEnemies();
-  resolveContacts();
-  resolveSpikes();
-  updatePuzzle();
-  updateHud();
   state.nextBeatAt = now + state.beatMs;
   ui.beatNumber.textContent = String((state.beatIndex % 4) + 1);
 }
 
-function isBlocked(x, y) {
-  if (x <= 0 || y <= 0 || x >= SIZE - 1 || y >= SIZE - 1) return true;
-  return state.walls.some((wall) => wall.x === x && wall.y === y);
+function isInside(x, y) {
+  return x > 0 && y > 0 && x < SIZE - 1 && y < SIZE - 1;
 }
 
-function crystalAt(x, y) {
-  return state.crystals.find((crystal) => crystal.x === x && crystal.y === y);
+function hedgeAt(x, y) {
+  return state.hedges.some((item) => item.x === x && item.y === y);
 }
 
-function enemyAt(x, y) {
-  return state.enemies.find((enemy) => enemy.x === x && enemy.y === y);
+function canAt(x, y) {
+  return state.cans.find((item) => item.x === x && item.y === y);
 }
 
-function movePlayer(dir, quality) {
+function friendAt(x, y) {
+  return state.friends.find((item) => item.x === x && item.y === y);
+}
+
+function mushroomAt(x, y) {
+  return state.mushrooms.find((item) => item.x === x && item.y === y);
+}
+
+function blocked(x, y) {
+  return !isInside(x, y) || hedgeAt(x, y) || mushroomAt(x, y);
+}
+
+function movePlayer(dir, sparkle) {
   const delta = dirs[dir];
   const tx = state.player.x + delta.x;
   const ty = state.player.y + delta.y;
-  if (isBlocked(tx, ty)) {
-    bump("벽에 막혔다");
-    return;
+  state.player.tilt = delta.x * 0.08;
+
+  if (blocked(tx, ty)) {
+    friendlyBump(mushroomAt(tx, ty) ? "버섯 친구가 쿨쿨 자고 있어요" : "생울타리 너머는 갈 수 없어요");
+    return false;
   }
 
-  const enemy = enemyAt(tx, ty);
-  if (enemy) {
-    enemy.hp -= quality === "perfect" ? 2 : 1;
-    state.combo += quality === "perfect" ? 2 : 1;
-    state.score += quality === "perfect" ? 180 : 100;
-    state.shake = 7;
-    burst(tx, ty, "#f06b5f", 14);
-    playAction("hit");
-    if (enemy.hp <= 0) {
-      state.enemies = state.enemies.filter((item) => item !== enemy);
-      state.gold += enemy.type === "knight" ? 3 : 1;
-      showMessage("파수꾼 격파", "good");
-    } else {
-      showMessage("갑옷을 부쉈다", "good");
+  const friend = friendAt(tx, ty);
+  if (friend) {
+    if (!nudgeFriend(friend, delta)) {
+      friendlyBump("숲 친구와 인사했어요");
+      setMood(friend, "heart", 0.8);
+      return false;
     }
-    return;
+    setMood(friend, "surprise", 0.65);
+    state.score += 15;
   }
 
-  const crystal = crystalAt(tx, ty);
-  if (crystal) {
+  const can = canAt(tx, ty);
+  if (can) {
     const bx = tx + delta.x;
     const by = ty + delta.y;
-    if (isBlocked(bx, by) || crystalAt(bx, by) || enemyAt(bx, by) || (state.exit.x === bx && state.exit.y === by)) {
-      bump("크리스털이 걸렸다");
-      return;
+    const blockingFriend = friendAt(bx, by);
+    if (blockingFriend && !nudgeFriend(blockingFriend, delta)) {
+      friendlyBump("친구가 지나갈 때까지 잠깐 기다려요");
+      return false;
     }
-    crystal.x = bx;
-    crystal.y = by;
-    crystal.squash = 1;
-    burst(bx, by, "#42e4da", 10);
+    if (blocked(bx, by) || canAt(bx, by) || same(state.portal, { x: bx, y: by })) {
+      friendlyBump("물뿌리개가 살짝 걸렸어요");
+      return false;
+    }
+    can.x = bx;
+    can.y = by;
+    can.squash = 1;
+    burst(bx, by, ["#78d3e7", "#d9f6f0", "#ffffff"], 9);
   }
 
   state.player.x = tx;
   state.player.y = ty;
-  state.combo += quality === "perfect" ? 2 : 1;
-  state.score += quality === "perfect" ? 60 : 35;
-  if (quality === "perfect") playAction("perfect");
+  state.score += sparkle ? 35 : 20;
 
-  const coin = state.coins.find((item) => same(item, state.player));
-  if (coin) {
-    state.coins = state.coins.filter((item) => item !== coin);
+  const seed = state.seeds.find((item) => same(item, state.player));
+  if (seed) {
+    state.seeds = state.seeds.filter((item) => item !== seed);
     state.gold += 1;
-    state.score += 75 + state.combo * 3;
-    burst(tx, ty, "#f5bd4c", 14);
-    showMessage("룬 조각 +1", "good");
-    tone(880, 0.12, 0.12, "triangle");
+    state.score += 60;
+    setMood(state.player, "heart", 0.7);
+    burst(tx, ty, ["#ffe27a", "#f6a6bd", "#fff8d0"], 16);
+    showMessage("햇살 씨앗을 찾았어요", "good", 1.25);
+    playSound("seed");
   }
 
-  if (state.gateOpen && same(state.player, state.exit)) completeRoom();
+  if (state.portalOpen && same(state.player, state.portal)) return "portal";
+  return true;
 }
 
-function bump(message) {
-  state.shake = 3;
-  state.combo = 0;
-  showMessage(message, "bad");
-  tone(90, 0.08, 0.12, "square");
+function friendlyBump(message) {
+  state.shake = 2.5;
+  state.player.squash = 0.65;
+  setMood(state.player, "surprise", 0.65);
+  showMessage(`${message} · 다른 걸음은 그대로예요`, "bad", 1.45);
+  playSound("bump");
 }
 
-function moveEnemies() {
-  const occupied = new Set(state.enemies.map((enemy) => key(enemy.x, enemy.y)));
-  for (const enemy of state.enemies) {
-    occupied.delete(key(enemy.x, enemy.y));
-    enemy.phase = 1 - enemy.phase;
-    if (enemy.type === "slime" && enemy.phase) {
-      occupied.add(key(enemy.x, enemy.y));
-      continue;
+function nudgeFriend(friend, preferred) {
+  const options = [
+    { x: friend.x + preferred.x, y: friend.y + preferred.y },
+    ...Object.values(dirs).map((dir) => ({ x: friend.x + dir.x, y: friend.y + dir.y })),
+  ];
+  const next = options.find((tile) => {
+    const occupiedBed = state.beds.some((bed) => same(bed, tile));
+    return !blocked(tile.x, tile.y) && !canAt(tile.x, tile.y) && !friendAt(tile.x, tile.y) && !occupiedBed && !same(tile, state.portal) && !same(tile, state.player);
+  });
+  if (!next) return false;
+  friend.x = next.x;
+  friend.y = next.y;
+  friend.squash = 1;
+  return true;
+}
+
+function moveFriends() {
+  const occupied = new Set(state.friends.map((friend) => key(friend.x, friend.y)));
+  for (const friend of state.friends) {
+    occupied.delete(key(friend.x, friend.y));
+    const options = Object.values(dirs)
+      .map((dir) => ({ x: friend.x + dir.x, y: friend.y + dir.y }))
+      .filter((tile) => {
+        const onBed = state.beds.some((bed) => same(bed, tile));
+        return !blocked(tile.x, tile.y) && !canAt(tile.x, tile.y) && !occupied.has(key(tile.x, tile.y)) && !same(tile, state.portal) && !same(tile, state.player) && !onBed;
+      });
+    if (options.length && Math.random() > 0.3) {
+      const next = options[Math.floor(Math.random() * options.length)];
+      friend.x = next.x;
+      friend.y = next.y;
+      friend.squash = 0.7;
     }
-
-    const candidates = enemy.type === "bat" ? shuffledSteps(enemy) : directedSteps(enemy);
-    const next = candidates.find((tile) => !isBlocked(tile.x, tile.y) && !occupied.has(key(tile.x, tile.y)) && !crystalAt(tile.x, tile.y));
-    if (next) {
-      enemy.x = next.x;
-      enemy.y = next.y;
-    }
-    occupied.add(key(enemy.x, enemy.y));
+    occupied.add(key(friend.x, friend.y));
   }
 }
 
-function directedSteps(enemy) {
-  const dx = Math.sign(state.player.x - enemy.x);
-  const dy = Math.sign(state.player.y - enemy.y);
-  const horizontal = { x: enemy.x + dx, y: enemy.y };
-  const vertical = { x: enemy.x, y: enemy.y + dy };
-  return Math.abs(state.player.x - enemy.x) >= Math.abs(state.player.y - enemy.y)
-    ? [horizontal, vertical]
-    : [vertical, horizontal];
-}
+function updateGarden() {
+  const blooming = state.beds.filter((bed) => state.cans.some((can) => same(bed, can))).length;
+  const wasOpen = state.portalOpen;
+  state.portalOpen = blooming === state.beds.length;
+  ui.sealStatus.textContent = `${blooming}/${state.beds.length}`;
 
-function shuffledSteps(enemy) {
-  const options = Object.values(dirs).map((dir) => ({ x: enemy.x + dir.x, y: enemy.y + dir.y }));
-  for (let i = options.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [options[i], options[j]] = [options[j], options[i]];
-  }
-  return options;
-}
-
-function resolveContacts() {
-  if (state.enemies.some((enemy) => same(enemy, state.player))) damagePlayer("파수꾼의 공격");
-}
-
-function spikeActive(spike) {
-  return (state.beatIndex + spike.phase) % 2 === 0;
-}
-
-function resolveSpikes() {
-  const active = state.spikes.some((spike) => spikeActive(spike) && same(spike, state.player));
-  if (active) damagePlayer("가시 함정");
-}
-
-function damagePlayer(reason) {
-  if (state.player.invulnerable > 0) return;
-  state.player.hp -= 1;
-  state.player.invulnerable = 2;
-  state.combo = 0;
-  state.shake = 12;
-  state.flash = 1;
-  burst(state.player.x, state.player.y, "#f06b5f", 20);
-  showMessage(reason, "bad");
-  playAction("hit");
-  if (navigator.vibrate) navigator.vibrate(45);
-  if (state.player.hp <= 0) endGame(false);
-}
-
-function updatePuzzle() {
-  const active = state.plates.filter((plate) => state.crystals.some((crystal) => same(plate, crystal))).length;
-  const wasOpen = state.gateOpen;
-  state.gateOpen = active === state.plates.length && state.enemies.length === 0;
-  ui.sealStatus.textContent = `${active}/${state.plates.length}`;
-  ui.sealStatus.style.color = active === state.plates.length ? "var(--gold)" : "var(--cyan-soft)";
-
-  if (state.gateOpen && !wasOpen) {
-    showMessage("봉인문이 열렸다", "good");
-    playAction("seal");
-    burst(state.exit.x, state.exit.y, "#a97dff", 28);
-  }
-
-  if (active === state.plates.length && state.enemies.length > 0) {
-    ui.objective.textContent = `룬 완성 · 남은 파수꾼 ${state.enemies.length}`;
-  } else if (active < state.plates.length) {
-    ui.objective.textContent = rooms[state.roomIndex].hint;
-  } else {
-    ui.objective.textContent = "열린 봉인문으로 이동하라";
+  if (state.portalOpen && !wasOpen) {
+    ui.objective.textContent = "꽃문이 열렸어요 · 안으로 들어가요";
+    showMessage("모든 꽃이 활짝 피었어요!", "good", 2);
+    playSound("bloom");
+    burst(state.portal.x, state.portal.y, ["#fff39c", "#f6a6bd", "#9edbc0", "#a9cfee"], 34);
+  } else if (!state.portalOpen) {
+    ui.objective.textContent = gardens[state.gardenIndex].hint;
   }
 }
 
-function completeRoom() {
-  state.score += 500 + state.combo * 10;
+function completeGarden() {
+  state.score += 400 + state.sparkle * 8;
   state.depth += 1;
-  if (state.depth > rooms.length) {
-    endGame(true);
+  if (state.depth > gardens.length) {
+    finishRun();
     return;
   }
-  showMessage("다음 금고로 진입", "good");
-  loadRoom(state.roomIndex + 1, true);
+  loadGarden(state.gardenIndex + 1, true);
   state.nextBeatAt = performance.now() + state.beatMs;
+  showMessage("다음 정원으로 폴짝!", "good", 1.7);
 }
 
-function endGame(victory) {
+function finishRun() {
   state.running = false;
-  state.over = true;
-  setBeatCueClasses(false, false);
+  state.complete = true;
+  state.queue = [];
+  updateQueueUi();
   ui.overlay.classList.remove("is-hidden");
-  const eyebrow = ui.overlay.querySelector(".eyebrow");
-  const title = ui.overlay.querySelector("h2");
-  const copy = ui.overlay.querySelector(".intro-copy");
-  eyebrow.textContent = victory ? "VAULT RESONANCE COMPLETE" : "THE RHYTHM WAS BROKEN";
-  title.innerHTML = victory ? "모든 봉인이<br><em>깨어났다</em>" : "박자를 되찾아<br><em>다시 도전하라</em>";
-  copy.textContent = `점수 ${state.score.toLocaleString()} · 룬 조각 ${state.gold} · 최대 금고 ${Math.min(state.depth, rooms.length)}`;
-  ui.start.querySelector("span").textContent = "다시 탐험";
+  ui.overlay.querySelector(".eyebrow").textContent = "EVERY GARDEN IS BLOOMING";
+  ui.overlay.querySelector("h2").innerHTML = "정원이 모두<br><em>활짝 피었어요</em>";
+  ui.overlay.querySelector(".intro-copy").textContent = `정원 점수 ${state.score.toLocaleString()} · 햇살 씨앗 ${state.gold} · 반짝 걸음 ${state.sparkle}`;
+  ui.start.querySelector("span").textContent = "다시 산책하기";
+  playSound("bloom");
+}
+
+function setMood(item, mood, duration) {
+  item.mood = mood;
+  item.moodTimer = duration;
 }
 
 function setTiming(text, kind = "") {
@@ -494,40 +515,34 @@ function setTiming(text, kind = "") {
   if (kind) ui.timingDot.classList.add(kind);
 }
 
-function showMessage(text, kind = "good") {
+function showMessage(text, kind = "good", duration = 1.3) {
   ui.message.textContent = text;
-  ui.message.style.borderColor = kind === "bad" ? "rgba(240,107,95,.55)" : "rgba(66,228,218,.42)";
-  ui.message.style.color = kind === "bad" ? "var(--coral)" : "var(--cyan-soft)";
+  ui.message.style.color = kind === "bad" ? "#b46b56" : "#5b7750";
   ui.message.classList.add("is-visible");
-  state.messageTimer = 1.2;
+  state.messageTimer = duration;
 }
 
 function updateHud() {
-  ui.hearts.replaceChildren();
-  for (let i = 0; i < 4; i += 1) {
-    const heart = document.createElement("i");
-    heart.className = `heart${i >= state.player.hp ? " is-empty" : ""}`;
-    ui.hearts.append(heart);
-  }
-  ui.combo.textContent = state.combo;
+  ui.combo.textContent = state.sparkle;
   ui.gold.textContent = state.gold;
   ui.score.textContent = state.score.toLocaleString();
   ui.depth.textContent = String(Math.min(state.depth, 99)).padStart(2, "0");
 }
 
-function burst(x, y, color, count) {
+function burst(x, y, colors, count) {
   for (let i = 0; i < count; i += 1) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 0.5 + Math.random() * 1.8;
+    const speed = 0.45 + Math.random() * 1.5;
     state.particles.push({
       x: x + 0.5,
       y: y + 0.5,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 0.7,
-      life: 0.5 + Math.random() * 0.45,
-      maxLife: 0.95,
-      color,
-      size: 1.5 + Math.random() * 3,
+      vy: Math.sin(angle) * speed - 0.65,
+      life: 0.55 + Math.random() * 0.5,
+      maxLife: 1.05,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 2 + Math.random() * 3,
+      spin: Math.random() * Math.PI,
     });
   }
 }
@@ -543,25 +558,31 @@ function resizeCanvas() {
 }
 
 function animateEntity(item, dt) {
-  const speed = 1 - Math.pow(0.001, dt);
+  const speed = 1 - Math.pow(0.0012, dt);
   item.rx += (item.x - item.rx) * speed;
   item.ry += (item.y - item.ry) * speed;
-  item.squash = Math.max(0, item.squash - dt * 5.5);
+  item.squash = Math.max(0, item.squash - dt * 4.7);
+  item.tilt *= Math.pow(0.01, dt);
+  if (item.moodTimer > 0) {
+    item.moodTimer -= dt;
+    if (item.moodTimer <= 0) item.mood = "";
+  }
 }
 
 function update(dt) {
   animateEntity(state.player, dt);
-  [...state.enemies, ...state.crystals, ...state.coins].forEach((item) => animateEntity(item, dt));
+  [...state.cans, ...state.seeds, ...state.friends].forEach((item) => animateEntity(item, dt));
   state.particles.forEach((particle) => {
     particle.x += particle.vx * dt;
     particle.y += particle.vy * dt;
-    particle.vy += 3.2 * dt;
+    particle.vy += 2.6 * dt;
+    particle.spin += dt * 5;
     particle.life -= dt;
   });
   state.particles = state.particles.filter((particle) => particle.life > 0);
-  state.shake = Math.max(0, state.shake - dt * 30);
-  state.flash = Math.max(0, state.flash - dt * 3.8);
-  state.beatFlash = Math.max(0, state.beatFlash - dt * 5.5);
+  state.shake = Math.max(0, state.shake - dt * 22);
+  state.beatFlash = Math.max(0, state.beatFlash - dt * 3.8);
+  state.beatPulse = Math.max(0, state.beatPulse - dt * 2.8);
   if (state.messageTimer > 0) {
     state.messageTimer -= dt;
     if (state.messageTimer <= 0) ui.message.classList.remove("is-visible");
@@ -571,381 +592,288 @@ function update(dt) {
 function boardMetrics() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
-  const side = Math.min(width * 0.94, height * 0.94);
+  const side = Math.min(width * 0.87, height * 0.86);
   const tile = side / SIZE;
-  return { width, height, side, tile, ox: (width - side) / 2, oy: (height - side) / 2 };
+  return { width, height, side, tile, ox: (width - side) / 2, oy: (height - side) / 2 + height * 0.015 };
 }
 
 function draw() {
   const m = boardMetrics();
   ctx.clearRect(0, 0, m.width, m.height);
-  drawBackdrop(m);
-  const sx = state.shake ? (Math.random() - 0.5) * state.shake : 0;
-  const sy = state.shake ? (Math.random() - 0.5) * state.shake : 0;
+  drawGardenBackground(m);
+  const shakeX = state.shake ? (Math.random() - 0.5) * state.shake : 0;
+  const shakeY = state.shake ? (Math.random() - 0.5) * state.shake : 0;
   ctx.save();
-  ctx.translate(sx, sy);
-  drawBoard(m);
-  drawPlates(m);
-  drawSpikes(m);
-  drawGate(m);
-  state.coins.forEach((coin) => drawCoin(coin, m));
-  state.crystals.forEach((crystal) => drawEntitySprite(crystal, "crystal", m, 1.2));
-  drawBeatCue(m);
-  state.enemies.forEach((enemy) => drawEnemy(enemy, m));
+  ctx.translate(shakeX, shakeY);
+  drawBoardGuides(m);
+  drawBeds(m);
+  drawHedges(m);
+  drawMushrooms(m);
+  drawPortal(m);
+  state.seeds.forEach((seed) => drawSeed(seed, m));
+  state.cans.forEach((can) => drawSprite(can, "can", m, 1.06));
+  state.friends.forEach((friend) => drawFriend(friend, m));
+  drawStepCue(m);
   drawPlayer(m);
   drawParticles(m);
   ctx.restore();
-  if (state.flash > 0) {
-    ctx.fillStyle = `rgba(240, 107, 95, ${state.flash * 0.2})`;
+}
+
+function drawGardenBackground(m) {
+  if (gardenReady) {
+    const scale = Math.max(m.width / gardenImage.naturalWidth, m.height / gardenImage.naturalHeight);
+    const sw = m.width / scale;
+    const sh = m.height / scale;
+    const sx = (gardenImage.naturalWidth - sw) / 2;
+    const sy = (gardenImage.naturalHeight - sh) / 2;
+    ctx.drawImage(gardenImage, sx, sy, sw, sh, 0, 0, m.width, m.height);
+  } else {
+    const gradient = ctx.createLinearGradient(0, 0, 0, m.height);
+    gradient.addColorStop(0, "#b8dc77");
+    gradient.addColorStop(1, "#87c66e");
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, m.width, m.height);
   }
-}
-
-function drawBackdrop(m) {
-  const glow = ctx.createRadialGradient(m.width / 2, m.height * 0.46, 0, m.width / 2, m.height * 0.48, m.side * 0.8);
-  glow.addColorStop(0, "#1a2b2e");
-  glow.addColorStop(0.46, "#0e181d");
-  glow.addColorStop(1, "#040609");
-  ctx.fillStyle = glow;
+  ctx.fillStyle = "rgba(255, 250, 205, 0.11)";
   ctx.fillRect(0, 0, m.width, m.height);
-
-  const time = performance.now() * 0.00008;
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  for (let i = 0; i < 14; i += 1) {
-    const px = ((i * 83.17 + time * (18 + i)) % 100) / 100 * m.width;
-    const py = ((i * 47.31 - time * (9 + i * 0.4)) % 100 + 100) % 100 / 100 * m.height;
-    const alpha = 0.045 + (i % 3) * 0.018;
-    ctx.fillStyle = `rgba(122, 218, 205, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(px, py, 0.8 + (i % 4) * 0.45, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
 }
 
-function drawBoard(m) {
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,.65)";
-  ctx.shadowBlur = 30;
-  ctx.fillStyle = "#080c0f";
-  ctx.beginPath();
-  ctx.arc(m.width / 2, m.height / 2, m.side * 0.54, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  const floorGlow = ctx.createRadialGradient(m.width / 2, m.height / 2, m.tile, m.width / 2, m.height / 2, m.side * 0.56);
-  floorGlow.addColorStop(0, "#17272a");
-  floorGlow.addColorStop(0.72, "#101a1f");
-  floorGlow.addColorStop(1, "#080d10");
-  ctx.fillStyle = floorGlow;
-  ctx.beginPath();
-  ctx.arc(m.width / 2, m.height / 2, m.side * 0.525, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.save();
-  ctx.translate(m.width / 2, m.height / 2);
-  ctx.strokeStyle = "rgba(74, 179, 169, 0.08)";
-  ctx.lineWidth = 1;
-  [0.21, 0.34, 0.47].forEach((radius, index) => {
-    ctx.setLineDash(index === 1 ? [8, 13] : [3, 17]);
-    ctx.beginPath();
-    ctx.arc(0, 0, m.side * radius, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-  ctx.restore();
-
-  for (let y = 0; y < SIZE; y += 1) {
-    for (let x = 0; x < SIZE; x += 1) {
-      const px = m.ox + x * m.tile;
-      const py = m.oy + y * m.tile;
-      const wall = x === 0 || y === 0 || x === SIZE - 1 || y === SIZE - 1 || state.walls.some((item) => item.x === x && item.y === y);
-      if (wall) drawWall(px, py, m.tile, x, y);
-      else drawFloor(px, py, m.tile, x, y);
+function drawBoardGuides(m) {
+  for (let y = 1; y < SIZE - 1; y += 1) {
+    for (let x = 1; x < SIZE - 1; x += 1) {
+      const cx = m.ox + (x + 0.5) * m.tile;
+      const cy = m.oy + (y + 0.5) * m.tile;
+      const seedValue = Math.sin(x * 18.3 + y * 31.7) * 0.5 + 0.5;
+      ctx.fillStyle = `rgba(255, 255, 220, ${0.055 + seedValue * 0.028})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + m.tile * 0.16, m.tile * 0.35, m.tile * 0.18, seedValue * 0.35, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
-
-  drawTorches(m);
-}
-
-function seeded(gx, gy, salt = 0) {
-  const value = Math.sin(gx * 91.7 + gy * 47.3 + salt * 17.1) * 43758.5453;
-  return value - Math.floor(value);
-}
-
-function drawFloor(x, y, tile, gx, gy) {
-  const inset = tile * 0.035;
-  const corners = [0, 1, 2, 3].map((i) => (seeded(gx, gy, i) - 0.5) * tile * 0.13);
-  const gradient = ctx.createLinearGradient(x, y, x, y + tile);
-  const toneShift = seeded(gx, gy, 8) > 0.52;
-  gradient.addColorStop(0, toneShift ? "#1a292b" : "#172428");
-  gradient.addColorStop(1, toneShift ? "#111b1e" : "#0f191d");
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.moveTo(x + inset + corners[0], y + inset);
-  ctx.lineTo(x + tile - inset, y + inset + corners[1]);
-  ctx.lineTo(x + tile - inset + corners[2] * 0.25, y + tile - inset);
-  ctx.lineTo(x + inset, y + tile - inset + corners[3] * 0.25);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = "rgba(3, 8, 10, 0.5)";
-  ctx.lineWidth = Math.max(1, tile * 0.035);
-  ctx.stroke();
-
-  const mark = seeded(gx, gy, 12);
-  ctx.strokeStyle = `rgba(121, 176, 169, ${0.035 + mark * 0.05})`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(x + tile * (0.15 + mark * 0.16), y + tile * 0.22);
-  ctx.lineTo(x + tile * (0.45 + mark * 0.12), y + tile * 0.47);
-  ctx.lineTo(x + tile * (0.38 + mark * 0.2), y + tile * 0.74);
-  ctx.stroke();
-
-  if (seeded(gx, gy, 19) > 0.64) {
-    ctx.fillStyle = "rgba(72, 108, 66, 0.18)";
-    ctx.beginPath();
-    ctx.ellipse(x + tile * (0.25 + mark * 0.45), y + tile * 0.78, tile * 0.16, tile * 0.055, mark, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawWall(x, y, tile, gx, gy) {
-  const wobble = (seeded(gx, gy, 3) - 0.5) * tile * 0.1;
-  const edge = ctx.createLinearGradient(x, y, x, y + tile);
-  edge.addColorStop(0, "#39474a");
-  edge.addColorStop(0.22, "#263438");
-  edge.addColorStop(1, "#0d1519");
-  ctx.fillStyle = edge;
-  ctx.beginPath();
-  ctx.moveTo(x + tile * 0.08 + wobble, y + tile * 0.14);
-  ctx.lineTo(x + tile * 0.86, y + tile * 0.07 - wobble * 0.3);
-  ctx.lineTo(x + tile * 0.95 - wobble, y + tile * 0.83);
-  ctx.lineTo(x + tile * 0.16, y + tile * 0.94 + wobble * 0.2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = "rgba(168, 203, 194, 0.13)";
-  ctx.beginPath();
-  ctx.moveTo(x + tile * 0.15, y + tile * 0.17);
-  ctx.lineTo(x + tile * 0.82, y + tile * 0.11);
-  ctx.lineTo(x + tile * 0.74, y + tile * 0.22);
-  ctx.lineTo(x + tile * 0.2, y + tile * 0.27);
-  ctx.closePath();
-  ctx.fill();
-  if ((gx + gy) % 3 === 0) {
-    ctx.strokeStyle = "rgba(66,228,218,.12)";
-    ctx.beginPath();
-    ctx.moveTo(x + tile * 0.5, y + tile * 0.28);
-    ctx.lineTo(x + tile * 0.42, y + tile * 0.48);
-    ctx.lineTo(x + tile * 0.56, y + tile * 0.68);
-    ctx.stroke();
-  }
-}
-
-function drawTorches(m) {
-  const time = performance.now() * 0.012;
-  const points = [[0.72, 1.15], [6.25, 1.05], [0.8, 5.8], [6.2, 5.85]];
-  points.forEach(([gx, gy], index) => {
-    const x = m.ox + gx * m.tile;
-    const y = m.oy + gy * m.tile;
-    const flicker = 0.92 + Math.sin(time + index * 1.7) * 0.08;
-    const light = ctx.createRadialGradient(x, y, 0, x, y, m.tile * 1.25);
-    light.addColorStop(0, `rgba(245, 177, 72, ${0.17 * flicker})`);
-    light.addColorStop(0.35, `rgba(219, 101, 48, ${0.07 * flicker})`);
-    light.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = light;
-    ctx.fillRect(x - m.tile * 1.3, y - m.tile * 1.3, m.tile * 2.6, m.tile * 2.6);
-    ctx.fillStyle = "#6b4028";
-    ctx.fillRect(x - 2, y + m.tile * 0.06, 4, m.tile * 0.24);
-    ctx.fillStyle = "#ffd36a";
-    ctx.beginPath();
-    ctx.moveTo(x, y - m.tile * 0.2 * flicker);
-    ctx.quadraticCurveTo(x + m.tile * 0.12, y, x, y + m.tile * 0.09);
-    ctx.quadraticCurveTo(x - m.tile * 0.1, y, x, y - m.tile * 0.2 * flicker);
-    ctx.fill();
-  });
 }
 
 function tileCenter(item, m) {
   return { x: m.ox + (item.rx + 0.5) * m.tile, y: m.oy + (item.ry + 0.5) * m.tile };
 }
 
-function drawPlates(m) {
-  state.plates.forEach((plate) => {
-    const cx = m.ox + (plate.x + 0.5) * m.tile;
-    const cy = m.oy + (plate.y + 0.5) * m.tile;
-    const active = state.crystals.some((crystal) => same(crystal, plate));
+function drawBeds(m) {
+  state.beds.forEach((bed, index) => {
+    const cx = m.ox + (bed.x + 0.5) * m.tile;
+    const cy = m.oy + (bed.y + 0.5) * m.tile;
+    const blooming = state.cans.some((can) => same(can, bed));
     ctx.save();
-    ctx.strokeStyle = active ? "#f5bd4c" : "rgba(66,228,218,.42)";
-    ctx.lineWidth = Math.max(1.5, m.tile * 0.035);
-    ctx.shadowColor = active ? "#f5bd4c" : "#42e4da";
-    ctx.shadowBlur = active ? 14 : 5;
-    ctx.translate(cx, cy);
-    ctx.rotate(Math.PI / 4);
-    ctx.strokeRect(-m.tile * 0.25, -m.tile * 0.25, m.tile * 0.5, m.tile * 0.5);
-    ctx.strokeRect(-m.tile * 0.12, -m.tile * 0.12, m.tile * 0.24, m.tile * 0.24);
+    ctx.translate(cx, cy + m.tile * 0.1);
+    ctx.fillStyle = blooming ? "rgba(255, 244, 177, 0.72)" : "rgba(98, 137, 67, 0.22)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, m.tile * 0.39, m.tile * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const colors = ["#f49ab2", "#f6d36c", "#8ecedc", "#a992dc"];
+    for (let i = 0; i < 5; i += 1) {
+      const angle = i / 5 * Math.PI * 2 + index;
+      const radius = blooming ? m.tile * 0.21 : m.tile * 0.14;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius * 0.55;
+      drawFlower(x, y, blooming ? m.tile * 0.1 : m.tile * 0.065, colors[(i + index) % colors.length], blooming ? 1 : 0.45);
+    }
     ctx.restore();
   });
 }
 
-function drawSpikes(m) {
-  state.spikes.forEach((spike) => {
-    const active = spikeActive(spike);
-    ctx.save();
-    ctx.globalAlpha = active ? 0.92 : 0.25;
-    const temp = entity(spike.x, spike.y);
-    drawEntitySprite(temp, "spike", m, active ? 1.05 : 0.82, active ? 0 : m.tile * 0.12);
-    ctx.restore();
-  });
-}
-
-function drawGate(m) {
-  const item = entity(state.exit.x, state.exit.y);
-  const c = tileCenter(item, m);
-  if (state.gateOpen) {
-    const pulse = 0.78 + Math.sin(performance.now() * 0.008) * 0.16;
-    const glow = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, m.tile * 0.62);
-    glow.addColorStop(0, `rgba(169,125,255,${0.34 * pulse})`);
-    glow.addColorStop(1, "rgba(169,125,255,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(c.x - m.tile, c.y - m.tile, m.tile * 2, m.tile * 2);
-  }
+function drawFlower(x, y, radius, color, alpha = 1) {
   ctx.save();
-  ctx.globalAlpha = state.gateOpen ? 1 : 0.5;
-  drawEntitySprite(item, "gate", m, 1.25);
-  ctx.restore();
-  if (state.gateOpen) {
-    ctx.strokeStyle = "rgba(213,190,255,.85)";
-    ctx.lineWidth = 2;
+  ctx.translate(x, y);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  for (let i = 0; i < 5; i += 1) {
+    const angle = i / 5 * Math.PI * 2;
     ctx.beginPath();
-    ctx.arc(c.x, c.y + m.tile * 0.05, m.tile * 0.25, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-}
-
-function drawCoin(coin, m) {
-  const bob = Math.sin(performance.now() * 0.005 + coin.spin) * m.tile * 0.06;
-  drawEntitySprite(coin, "coin", m, 0.72, bob);
-}
-
-function drawEnemy(enemy, m) {
-  const bob = Math.sin(performance.now() * 0.006 + enemy.phase) * m.tile * 0.025;
-  drawShadow(enemy, m, 0.27);
-  drawEntitySprite(enemy, enemy.type, m, enemy.type === "knight" ? 1.16 : 1.04, bob);
-  if (enemy.hp > 1) {
-    const c = tileCenter(enemy, m);
-    ctx.fillStyle = "#f5bd4c";
-    ctx.beginPath();
-    ctx.arc(c.x + m.tile * 0.25, c.y - m.tile * 0.28, 3.5, 0, Math.PI * 2);
+    ctx.arc(Math.cos(angle) * radius * 0.55, Math.sin(angle) * radius * 0.55, radius * 0.46, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.fillStyle = "#ffe378";
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
-function drawBeatCue(m) {
-  if (!state.running || state.paused) return;
-  const c = tileCenter(state.player, m);
-  const remain = state.beatRemain;
-  const ready = remain <= 0.36;
-  const now = remain <= 0.18;
-  const radius = m.tile * (0.34 + remain * 0.72);
-  const alpha = 0.28 + (1 - remain) * 0.55;
-  const color = now ? "245, 189, 76" : ready ? "66, 228, 218" : "116, 151, 154";
-
-  ctx.save();
-  ctx.translate(c.x, c.y + m.tile * 0.05);
-  ctx.strokeStyle = `rgba(${color}, ${alpha})`;
-  ctx.lineWidth = now ? 3 : 1.5;
-  ctx.shadowColor = now ? "#f5bd4c" : "#42e4da";
-  ctx.shadowBlur = now ? 16 : ready ? 9 : 0;
-  ctx.setLineDash(ready ? [] : [4, 7]);
-  ctx.beginPath();
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.setLineDash([]);
-  for (let i = 0; i < 4; i += 1) {
-    const angle = i * Math.PI / 2;
-    const x = Math.cos(angle) * radius;
-    const y = Math.sin(angle) * radius;
+function drawHedges(m) {
+  state.hedges.forEach((hedge, index) => {
+    const cx = m.ox + (hedge.x + 0.5) * m.tile;
+    const cy = m.oy + (hedge.y + 0.5) * m.tile;
     ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle + Math.PI / 2);
-    ctx.fillStyle = `rgba(${color}, ${Math.min(1, alpha + 0.16)})`;
+    ctx.translate(cx, cy);
+    ctx.fillStyle = "rgba(72, 93, 46, 0.18)";
+    ctx.beginPath();
+    ctx.ellipse(0, m.tile * 0.23, m.tile * 0.38, m.tile * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const greens = ["#74b85d", "#8fc96a", "#5fa450"];
+    [[-0.22, 0.04], [0.05, -0.08], [0.25, 0.08], [-0.03, 0.15]].forEach(([dx, dy], i) => {
+      ctx.fillStyle = greens[(i + index) % greens.length];
+      ctx.beginPath();
+      ctx.arc(dx * m.tile, dy * m.tile, m.tile * (0.23 - i * 0.012), 0, Math.PI * 2);
+      ctx.fill();
+    });
+    drawFlower(m.tile * 0.08, -m.tile * 0.17, m.tile * 0.065, index % 2 ? "#f3a3bd" : "#fff3a4", 0.9);
+    ctx.restore();
+  });
+}
+
+function drawMushrooms(m) {
+  state.mushrooms.forEach((mushroom, index) => {
+    const temp = entity(mushroom.x, mushroom.y);
+    const bob = Math.sin(performance.now() * 0.002 + index) * m.tile * 0.012;
+    drawShadow(temp, m, 0.25);
+    drawSprite(temp, "mushroom", m, 1.03, bob);
+  });
+}
+
+function drawPortal(m) {
+  const temp = entity(state.portal.x, state.portal.y);
+  const center = tileCenter(temp, m);
+  if (state.portalOpen) {
+    const pulse = 0.8 + Math.sin(performance.now() * 0.005) * 0.12;
+    const glow = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, m.tile * 0.75);
+    glow.addColorStop(0, `rgba(255, 245, 164, ${0.35 * pulse})`);
+    glow.addColorStop(0.55, `rgba(145, 218, 194, ${0.18 * pulse})`);
+    glow.addColorStop(1, "rgba(145, 218, 194, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(center.x - m.tile, center.y - m.tile, m.tile * 2, m.tile * 2);
+  }
+  ctx.save();
+  ctx.globalAlpha = state.portalOpen ? 1 : 0.42;
+  drawSprite(temp, "portal", m, 1.22, state.portalOpen ? Math.sin(performance.now() * 0.004) * 2 : 0);
+  ctx.restore();
+}
+
+function drawSeed(seed, m) {
+  const bob = Math.sin(performance.now() * 0.005 + seed.spin) * m.tile * 0.05;
+  drawSprite(seed, "seed", m, 0.72, bob);
+}
+
+function drawFriend(friend, m) {
+  const bob = Math.sin(performance.now() * 0.004 + friend.phase) * m.tile * 0.025;
+  drawShadow(friend, m, friend.type === "badger" ? 0.31 : 0.25);
+  drawSprite(friend, friend.type, m, friend.type === "badger" ? 1.15 : 1.02, bob, friend.tilt);
+  drawMood(friend, m);
+}
+
+function drawStepCue(m) {
+  if (!state.running || state.paused) return;
+  const center = tileCenter(state.player, m);
+  const progress = 1 - state.beatRemain;
+  const bonus = state.beatRemain <= 0.38;
+  const radius = m.tile * (0.43 + Math.sin(progress * Math.PI) * 0.09);
+  ctx.save();
+  ctx.translate(center.x, center.y + m.tile * 0.11);
+  ctx.strokeStyle = bonus ? "rgba(255, 224, 104, 0.9)" : "rgba(255, 255, 235, 0.62)";
+  ctx.lineWidth = bonus ? 3 : 2;
+  ctx.shadowColor = bonus ? "#ffe278" : "transparent";
+  ctx.shadowBlur = bonus ? 10 : 0;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+  ctx.stroke();
+  for (let i = 0; i < 4; i += 1) {
+    const angle = i / 4 * Math.PI * 2 + progress * 0.25;
+    drawFlower(Math.cos(angle) * radius, Math.sin(angle) * radius, m.tile * 0.04, bonus ? "#f4a0ba" : "#ffffff", bonus ? 1 : 0.7);
+  }
+  ctx.restore();
+
+  if (state.queue.length) {
+    const first = dirs[state.queue[0].dir];
+    ctx.save();
+    ctx.translate(center.x, center.y);
+    ctx.strokeStyle = "rgba(79, 135, 91, 0.85)";
+    ctx.fillStyle = "rgba(79, 135, 91, 0.85)";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(first.x * m.tile * 0.15, first.y * m.tile * 0.15);
+    ctx.lineTo(first.x * m.tile * 0.4, first.y * m.tile * 0.4);
+    ctx.stroke();
+    ctx.translate(first.x * m.tile * 0.42, first.y * m.tile * 0.42);
+    ctx.rotate(Math.atan2(first.y, first.x) + Math.PI / 2);
     ctx.beginPath();
     ctx.moveTo(0, m.tile * 0.08);
-    ctx.lineTo(-m.tile * 0.07, -m.tile * 0.04);
-    ctx.lineTo(m.tile * 0.07, -m.tile * 0.04);
+    ctx.lineTo(-m.tile * 0.07, -m.tile * 0.05);
+    ctx.lineTo(m.tile * 0.07, -m.tile * 0.05);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
   }
-
-  if (state.input && state.input.quality !== "miss") {
-    const queued = dirs[state.input.dir];
-    ctx.strokeStyle = "rgba(134, 255, 244, 0.9)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(queued.x * m.tile * 0.18, queued.y * m.tile * 0.18);
-    ctx.lineTo(queued.x * m.tile * 0.42, queued.y * m.tile * 0.42);
-    ctx.stroke();
-  }
-
-  if (now || state.beatFlash > 0.5) {
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = now ? "#fff1bd" : "#86fff4";
-    ctx.font = `900 ${Math.max(10, m.tile * 0.2)}px Inter, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText("NOW", 0, -m.tile * 0.62);
-  }
-  ctx.restore();
 }
 
 function drawPlayer(m) {
-  const anticipation = state.running ? Math.max(0, 1 - state.beatRemain * 2.8) : 0;
-  const beatBob = state.beatFlash * m.tile * 0.08 - anticipation * m.tile * 0.025;
-  drawShadow(state.player, m, 0.28);
+  const anticipation = state.running ? Math.max(0, 1 - state.beatRemain * 2.4) : 0;
+  const hop = state.beatFlash * m.tile * 0.1 - anticipation * m.tile * 0.02;
+  drawShadow(state.player, m, 0.28 - state.beatFlash * 0.05);
+  drawSprite(state.player, "player", m, 1.12, hop, state.player.tilt);
+  drawMood(state.player, m);
+}
+
+function drawMood(item, m) {
+  if (!item.mood) return;
+  const center = tileCenter(item, m);
+  const float = Math.sin(performance.now() * 0.01) * 2;
   ctx.save();
-  if (state.player.invulnerable > 0 && state.beatIndex % 2 === 0) ctx.globalAlpha = 0.48;
-  drawEntitySprite(state.player, "player", m, 1.12, beatBob);
+  ctx.translate(center.x + m.tile * 0.26, center.y - m.tile * 0.42 + float);
+  ctx.fillStyle = "rgba(255, 253, 245, 0.94)";
+  ctx.strokeStyle = "rgba(126, 111, 87, 0.18)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, m.tile * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = item.mood === "heart" ? "#ed88a6" : "#d99066";
+  ctx.font = `900 ${Math.max(11, m.tile * 0.2)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(item.mood === "heart" ? "♥" : "!", 0, 1);
   ctx.restore();
 }
 
 function drawShadow(item, m, scale) {
-  const c = tileCenter(item, m);
-  ctx.fillStyle = "rgba(0,0,0,.42)";
+  const center = tileCenter(item, m);
+  ctx.fillStyle = "rgba(65, 79, 39, 0.18)";
   ctx.beginPath();
-  ctx.ellipse(c.x, c.y + m.tile * 0.26, m.tile * scale, m.tile * 0.09, 0, 0, Math.PI * 2);
+  ctx.ellipse(center.x, center.y + m.tile * 0.26, m.tile * scale, m.tile * 0.09, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
-function drawEntitySprite(item, name, m, scale = 1, offsetY = 0) {
-  const c = tileCenter(item, m);
+function drawSprite(item, name, m, scale = 1, offsetY = 0, rotation = 0) {
+  const center = tileCenter(item, m);
   const squash = item.squash || 0;
   const width = m.tile * scale * (1 + squash * 0.08);
-  const height = m.tile * scale * (1 - squash * 0.1);
-  if (atlasReady) {
-    const [col, row] = spriteCells[name];
-    const sw = atlas.naturalWidth / 4;
-    const sh = atlas.naturalHeight / 2;
-    ctx.drawImage(atlas, col * sw, row * sh, sw, sh, c.x - width / 2, c.y - height / 2 - offsetY, width, height);
+  const height = m.tile * scale * (1 - squash * 0.09);
+  ctx.save();
+  ctx.translate(center.x, center.y - offsetY);
+  ctx.rotate(rotation || 0);
+  if (spritesReady) {
+    const [column, row] = spriteCells[name];
+    const sourceWidth = sprites.naturalWidth / 4;
+    const sourceHeight = sprites.naturalHeight / 2;
+    ctx.drawImage(sprites, column * sourceWidth, row * sourceHeight, sourceWidth, sourceHeight, -width / 2, -height / 2, width, height);
   } else {
-    ctx.fillStyle = name === "player" ? "#42e4da" : name === "crystal" ? "#5cecf2" : "#f06b5f";
+    ctx.fillStyle = name === "player" ? "#fff0cc" : name === "can" ? "#65cfd2" : "#f3a47e";
     ctx.beginPath();
-    ctx.arc(c.x, c.y - offsetY, width * 0.25, 0, Math.PI * 2);
+    ctx.arc(0, 0, width * 0.26, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 }
 
 function drawParticles(m) {
   state.particles.forEach((particle) => {
+    ctx.save();
     ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
+    ctx.translate(m.ox + particle.x * m.tile, m.oy + particle.y * m.tile);
+    ctx.rotate(particle.spin);
     ctx.fillStyle = particle.color;
-    ctx.fillRect(m.ox + particle.x * m.tile - particle.size / 2, m.oy + particle.y * m.tile - particle.size / 2, particle.size, particle.size);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, particle.size, particle.size * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   });
-  ctx.globalAlpha = 1;
 }
 
 function frame(now) {
@@ -953,15 +881,11 @@ function frame(now) {
   state.lastFrame = now;
   if (state.running && !state.paused) {
     while (now >= state.nextBeatAt) processBeat(now);
-    const remain = clamp((state.nextBeatAt - now) / state.beatMs, 0, 1);
-    state.beatRemain = remain;
-    const left = 8 + (1 - remain) * 42;
-    const right = 92 - (1 - remain) * 42;
-    ui.beatCursorLeft.style.setProperty("--cursor-left", `${left}%`);
-    ui.beatCursorRight.style.setProperty("--cursor-right", `${right}%`);
-    const ready = remain <= 0.36;
-    const beatNow = remain <= 0.18;
-    setBeatCueClasses(ready, beatNow);
+    state.beatRemain = clamp((state.nextBeatAt - now) / state.beatMs, 0, 1);
+    const progress = (1 - state.beatRemain) * 100;
+    ui.beatTrack.style.setProperty("--beat-progress", `${progress}%`);
+    const bonus = state.beatRemain <= 0.38;
+    ui.stepConsole.classList.toggle("is-sparkle", bonus);
   }
   update(dt);
   draw();
@@ -994,6 +918,6 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("resize", resizeCanvas);
 setBpm(state.bpm);
-loadRoom(0);
+loadGarden(0);
 resizeCanvas();
 requestAnimationFrame(frame);
