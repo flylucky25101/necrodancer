@@ -1,21 +1,27 @@
-# Beat Delver: Rune Vault
+# Bloom Hop
 
-Original mobile-first rhythm puzzle dungeon prototype. Move on the beat, push rune crystals onto pressure plates, avoid phase-shifting spikes, defeat sentinels, and open each sealed gate.
+An original mobile-first cozy rhythm puzzle garden. Queue up to three directions at any time, then watch Momo the rabbit take one relaxed step on each beat.
 
 ## Run
 
-Open `index.html` directly in a modern browser. Audio begins only after pressing the start button because of browser autoplay rules.
+Open `index.html` directly in a modern browser. Audio starts after pressing the start button because of browser autoplay rules.
 
-Keyboard controls: arrow keys or WASD to move, Space to pause. Mobile uses the on-screen direction pad.
+Keyboard controls: arrow keys or WASD to queue movement, Space to pause. Mobile uses the on-screen direction pad.
 
-## Features
+## Play design
 
-- Three handcrafted puzzle rooms
-- Character-centered closing beat ring, converging timing markers, and synchronized control glow
-- Beat-locked movement, combat, enemies, and hazards
-- Organic stone floor, irregular walls, torchlight, moss, cracks, and ambient dust
-- Smooth interpolated sprite movement and particle feedback
-- Responsive mobile HUD and touch controls
-- Original generated sprite atlas in `assets/sprite-atlas.png`
+- Any input during the beat is accepted and reserved for the next step.
+- Up to three future steps can be queued.
+- Missing a beat has no penalty; the rabbit simply rests.
+- Inputs near the flower bonus zone grant extra seeds and score but are never required.
+- Friendly collisions cancel only that step and preserve the remaining queue.
+- Three handcrafted watering-can puzzles introduce mechanics gradually.
 
-All characters, names, rules, and artwork in this prototype are original and do not reuse proprietary game assets.
+## Art
+
+The project uses original generated cartoon assets:
+
+- `assets/garden-sprites.png`: rabbit gardener, forest friends, seeds, watering can, flower portal, and mushroom.
+- `assets/garden-clearing.png`: bright magical garden environment.
+
+No proprietary characters, maps, or game assets are reused.
