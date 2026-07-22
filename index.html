@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#dcefd3" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Bloom Hop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <span class="brand-flower" aria-hidden="true"><i></i></span>
+          <div>
+            <p>COZY PUZZLE GARDEN</p>
+            <h1>BLOOM HOP</h1>
+          </div>
+        </div>
+        <div class="tool-row" aria-label="퍼즐 도구">
+          <button id="help" class="icon-button help-icon" type="button" aria-label="게임 방법" title="게임 방법">?</button>
+          <button id="undo" class="icon-button" type="button" aria-label="한 수 되돌리기" title="한 수 되돌리기">↶</button>
+          <button id="restart" class="icon-button" type="button" aria-label="현재 정원 다시 시작" title="현재 정원 다시 시작">↻</button>
+        </div>
+      </header>
+
+      <section class="mission-strip" aria-live="polite">
+        <div class="garden-badge">
+          <span>GARDEN</span>
+          <strong id="depth">01</strong>
+        </div>
+        <div class="mission-copy">
+          <span id="room-name">새싹 뜰</span>
+          <strong id="objective">물뿌리개를 꽃밭까지 밀어 주세요</strong>
+        </div>
+        <div id="seal-status" class="bloom-status" aria-label="꽃밭 진행도">0/1</div>
+      </section>
+
+      <section class="game-frame" aria-label="Bloom Hop 게임 화면">
+        <div class="hud">
+          <div class="hud-stat"><span>이동</span><strong id="moves">0</strong></div>
+          <div class="hud-stat"><span>햇살 씨앗</span><strong id="seeds">0</strong></div>
+          <div class="hud-stat"><span>피운 정원</span><strong><b id="gardens-cleared">0</b> / 3</strong></div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="game" width="900" height="900" aria-label="마법 정원 밀기 퍼즐"></canvas>
+          <div class="sun-wash" aria-hidden="true"></div>
+          <div id="floating-message" class="floating-message" aria-live="polite"></div>
+
+          <div id="overlay" class="overlay">
+            <div class="overlay-content">
+              <div class="hero-bunny" aria-hidden="true"></div>
+              <p class="eyebrow">MOMO'S GARDEN PUZZLE</p>
+              <h2>밀고, 피우고,<br /><em>꽃문을 열어요</em></h2>
+              <p class="intro-copy">모모와 함께 물뿌리개를 제자리로 옮겨 정원을 깨워 주세요.</p>
+              <ol class="how-to">
+                <li><span class="rule-icon move-rule">↑</span><div><strong>한 칸 이동</strong><small>화살표를 누르면 바로 움직여요.</small></div></li>
+                <li><span class="rule-icon can-rule"></span><div><strong>앞으로 밀기</strong><small>물뿌리개 뒤에서 밀어 주세요.</small></div></li>
+                <li><span class="rule-icon bloom-rule">✿</span><div><strong>꽃문으로 이동</strong><small>모든 꽃밭이 피면 문이 열려요.</small></div></li>
+              </ol>
+              <p class="puzzle-tip">물뿌리개는 당길 수 없어요. 막히면 ↶ 버튼으로 되돌리세요.</p>
+              <button id="start" class="primary-action" type="button">
+                <span>첫 정원 시작</span><i aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="coach" class="coach-bar" aria-live="polite">
+          <span class="coach-face" aria-hidden="true"></span>
+          <strong id="coach-text">화살표를 눌러 모모를 움직여 보세요.</strong>
+        </div>
+      </section>
+
+      <nav id="touch-pad" class="touch-pad" aria-label="이동 조작">
+        <button class="pad-btn up" data-dir="up" type="button" aria-label="위로 이동"><span>↑</span></button>
+        <button class="pad-btn left" data-dir="left" type="button" aria-label="왼쪽으로 이동"><span>←</span></button>
+        <div class="pad-core" aria-hidden="true"><span></span></div>
+        <button class="pad-btn right" data-dir="right" type="button" aria-label="오른쪽으로 이동"><span>→</span></button>
+        <button class="pad-btn down" data-dir="down" type="button" aria-label="아래로 이동"><span>↓</span></button>
+      </nav>
+    </main>
+
+    <script src="./src/game.js" defer></script>
+  </body>
+</html>
